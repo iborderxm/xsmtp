@@ -62,12 +62,12 @@ jobs:
         export CXX=mipsel-thingino-linux-musl-g++
         export AR=mipsel-thingino-linux-musl-ar
         export STRIP=mipsel-thingino-linux-musl-strip
-        make CC="${CXX}" CFLAGS="-O2 -static"
+        make CC="${CXX}"
 
     - name: Strip binaries
       if: matrix.target_arch == 'mipsel'
       run: |
-        mipsel-thingino-linux-musl-strip xsmtp
+        mipsel-thingino-linux-musl-strip --strip-all xsmtp
 
     - name: Prepare artifacts
       run: |

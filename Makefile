@@ -1,6 +1,6 @@
 CC = g++
-CFLAGS = -g -O2
-CFLAGS_EXTRA = -lpthread
+CFLAGS = -Os -s -fno-stack-protector -fomit-frame-pointer -fno-exceptions -fno-rtti -ffunction-sections -fdata-sections
+CFLAGS_EXTRA = -lpthread -Wl,--gc-sections -Wl,-O1
 BIN_FILE = xsmtp
 OBJ_FILES = module_mail.o module_user.o xsmtp.o
 SRC_FILES = module_mail.cpp module_user.cpp xsmtp.cpp
