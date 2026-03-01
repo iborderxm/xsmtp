@@ -22,12 +22,13 @@ Set the user data storage directory:
 ```
 vim conf.h
 ```
-Set the variable `data_dir` to `/home/YourName/data`. 
+Set the variable `data_dir` to `/etc/xsmtp/`. 
 
 3) Add files and user account
 ```
-cd /home/YourName/
-mkdir data
+
+mkdir /etc/xsmtp -p
+cd /etc/xsmtp/
 vim userinfo
 #add two users in this file
 #bill@localhost.com

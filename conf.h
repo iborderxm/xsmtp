@@ -28,7 +28,7 @@
 #define BUF_SIZE 1024
 
 // User information saving configurations
-const char data_dir[] = "/Users/billxia/Program/github/xsmtp/data/";
+const char data_dir[] = "/etc/xsmtp/";
 const char userinfo[] = "userinfo";
 const char userstat[] = "userstat";
 
