@@ -1,0 +1,160 @@
+# 此工作流用于在 Linux 平台上使用 GCC 编译器构建 xsmtp 项目
+name: Build with GCC
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+env:
+  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}-${{ matrix.target_arch }}-gcc
+      cancel-in-progress: true
+
+    strategy:
+      fail-fast: ${{ github.ref == 'refs/heads/master' }}
+
+      matrix:
+        build_type: [Release]
+        target_arch: [mipsel]
+        include:
+          - os: ubuntu-latest
+            target_arch: mipsel
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential
+
+    - name: Install MIPS cross-compiler
+      if: matrix.target_arch == 'mipsel'
+      run: |
+        mkdir temp
+        cd temp
+        wget https://github.com/themactep/thingino-firmware/releases/download/toolchain-x86_64/thingino-toolchain-x86_64_xburst1_4_4_musl_gcc14-linux-mipsel.tar.gz
+        tar -xzf thingino-toolchain-x86_64_xburst1_4_4_musl_gcc14-linux-mipsel.tar.gz
+        mv mipsel-thingino-linux-musl_sdk-buildroot /tmp/
+        ls -ltr /tmp/mipsel-thingino-linux-musl_sdk-buildroot/
+        /tmp/mipsel-thingino-linux-musl_sdk-buildroot/relocate-sdk.sh
+        echo "/tmp/mipsel-thingino-linux-musl_sdk-buildroot/bin" >> $GITHUB_PATH
+        echo "TOOLCHAIN_DIR=/tmp/mipsel-thingino-linux-musl_sdk-buildroot" >> $GITHUB_ENV
+        echo "PATH=${TOOLCHAIN_DIR}/bin:$PATH" >> $GITHUB_ENV
+        cd ../
+        rm -rf temp
+
+    - name: Build
+      run: |
+        export TOOLCHAIN_DIR=/tmp/mipsel-thingino-linux-musl_sdk-buildroot
+        export PATH=${TOOLCHAIN_DIR}/bin:$PATH
+        export CC=mipsel-thingino-linux-musl-gcc
+        export CXX=mipsel-thingino-linux-musl-g++
+        export AR=mipsel-thingino-linux-musl-ar
+        export STRIP=mipsel-thingino-linux-musl-strip
+        make CC="${CXX}" CFLAGS="-O2 -static"
+
+    - name: Strip binaries
+      if: matrix.target_arch == 'mipsel'
+      run: |
+        mipsel-thingino-linux-musl-strip xsmtp
+
+    - name: Prepare artifacts
+      run: |
+        mkdir -p target
+        cp xsmtp target/xsmtp_${{ matrix.target_arch }}
+        ls -ltr target/
+        du -sh target/*
+
+    - name: Upload build artifacts
+      if: success()
+      uses: actions/upload-artifact@v4
+      with:
+        name: xsmtp-${{ runner.os }}-gcc-${{ matrix.target_arch }}-${{ matrix.build_type }}
+        path: target
+        retention-days: 7
+
+  release:
+    needs: build
+    if: success() && github.event_name == 'push' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts
+
+    - name: Display structure of downloaded files
+      run: ls -R artifacts
+
+    - name: Create release
+      id: create_release
+      run: |
+        sudo timedatectl set-timezone Asia/Shanghai
+        TAG_NAME="release-$(date +'%Y-%m-%d-%H-%M')"
+        echo "TAG_NAME=$TAG_NAME" >> $GITHUB_ENV
+        echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
+
+    - name: Generate release notes
+      id: release_notes
+      run: |
+        GIT_HASH=$(git rev-parse --short ${GITHUB_SHA})
+        LAST_RELEASE_TAG=$(gh release list --limit 2 --json tagName -q '.[1].tagName')
+        if [ -z "$LAST_RELEASE_TAG" ]; then
+          echo "No previous release found." > release_notes.md
+          echo "RELEASE_NOTES_FILE=$(pwd)/release_notes.md" >> $GITHUB_ENV
+          exit 0
+        else
+          echo "Latest release so far is $LAST_RELEASE_TAG"
+        fi
+        COMMITS=$(gh api \
+          -H "Accept: application/vnd.github.v3+json" \
+          /repos/${{ github.repository }}/compare/$LAST_RELEASE_TAG...$GIT_HASH \
+          -q '.commits
+              | sort_by(.commit.author.date)
+              | reverse
+              | .[]
+              | select(
+                  .commit.message != "Merge remote-tracking branch '\''origin/master'\''"
+                  and (.commit.message | contains("workflow") | not)
+                  and (.commit.message | contains("Merge pull request #") | not)
+                )
+              | "\(.sha[0:7]) \(.commit.message | gsub("\n"; " "))"')
+        if [ -z "$COMMITS" ]; then
+          echo "### No changes, nightly rebuild" > release_notes.md
+        else
+          RELEASE_NOTES="### Changes in this release:\n"
+          while IFS= read -r commit; do
+            if [ -n "$commit" ]; then
+              RELEASE_NOTES="${RELEASE_NOTES}- ${commit}\n"
+            fi
+          done <<< "$COMMITS"
+          echo -e "$RELEASE_NOTES" > release_notes.md
+        fi
+        echo "RELEASE_NOTES_FILE=$(pwd)/release_notes.md" >> $GITHUB_ENV
+
+    - name: Release
+      uses: softprops/action-gh-release@v2.1.0
+      with:
+        tag_name: ${{ env.TAG_NAME }}
+        make_latest: false
+        prerelease: true
+        body_path: ${{ env.RELEASE_NOTES_FILE }}
+        files: |
+          artifacts/**/*.tar.gz
+          artifacts/**/xsmtp_*
