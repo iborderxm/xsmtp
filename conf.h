@@ -22,7 +22,7 @@
 #define __XSMTP_CONF_H
 
 // Mail Server configurations
-#define PORT 25  // use port 25, need root privilege
+#define DEFAULT_PORT 25  // default port, need root privilege
 #define MAX_CLIENTS 32
 #define MAX_RCPT_USR 50
 #define BUF_SIZE 1024
@@ -36,5 +36,11 @@ extern int mail_stat;
 extern int rcpt_user_num;
 extern char from_user[64];
 extern char rcpt_user[MAX_RCPT_USR][30];
+
+// Server port - can be set via command line argument
+extern int server_port;
+
+// Server bind IP - can be set via command line argument (default: 0.0.0.0 - all interfaces)
+extern char server_bind_ip[16];
 
 #endif

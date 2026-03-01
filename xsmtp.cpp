@@ -24,6 +24,8 @@ int mail_stat = 0;
 int rcpt_user_num = 0;
 char from_user[64] = "";
 char rcpt_user[MAX_RCPT_USR][30] = {""};
+int server_port = DEFAULT_PORT;
+char server_bind_ip[16] = "0.0.0.0";
 
 int quit(int arg);
 
@@ -31,6 +33,30 @@ int main(int argc,char* argv[]) {
 	//signal(SIGINT, (void*)quit);  //go to MiniWebQuit when Ctrl+C key pressed.
 	//signal(SIGTERM, (void*)quit); //terminal signal
 	signal(SIGPIPE, SIG_IGN);     //ignore pipe signal.For more see http://www.wlug.org.nz/SIGPIPE
+
+	// Parse command line arguments
+	for (int i = 1; i < argc; i++) {
+		if (strcmp(argv[i], "-p") == 0 && i + 1 < argc) {
+			int port = atoi(argv[i + 1]);
+			if (port > 0 && port <= 65535) {
+				server_port = port;
+			} else {
+				cerr << "Invalid port number. Using default port " << DEFAULT_PORT << endl;
+			}
+			i++;
+		} else if (strcmp(argv[i], "-h") == 0 && i + 1 < argc) {
+			strncpy(server_bind_ip, argv[i + 1], 15);
+			server_bind_ip[15] = '\0';
+			i++;
+		} else if (strcmp(argv[i], "--help") == 0) {
+			cout << "Usage: " << argv[0] << " [options]\n"
+				 << "Options:\n"
+				 << "  -p <port>    Set server port (default: " << DEFAULT_PORT << ")\n"
+				 << "  -h <ip>      Set bind IP address (default: 0.0.0.0)\n"
+				 << "  --help       Show this help message\n";
+			return 0;
+		}
+	}
 
 	int server_sockfd, client_sockfd;
 	socklen_t sin_size;
@@ -45,8 +71,12 @@ int main(int argc,char* argv[]) {
 
 	//set the socket's attributes
 	server_addr.sin_family = AF_INET;
-	server_addr.sin_port = htons(PORT);
-	server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+	server_addr.sin_port = htons(server_port);
+	if (strcmp(server_bind_ip, "0.0.0.0") == 0) {
+		server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+	} else {
+		server_addr.sin_addr.s_addr = inet_addr(server_bind_ip);
+	}
 	bzero(&(server_addr.sin_zero), 8);
 
 	//create a link
@@ -66,7 +96,8 @@ int main(int argc,char* argv[]) {
 
 	//accept requests from clients,loop and wait.
 	cout << "================================================================\n";
-	cout << "-XSMTP mail server by [Bill Xia](ibillxia@gmail.com) started..." << endl;
+	cout << "-XSMTP mail server started on " 
+		 << server_bind_ip << ":" << server_port << "..." << endl;
 	sin_size = sizeof(client_addr);
 	while (1) {
 		if ((client_sockfd = accept(server_sockfd,
