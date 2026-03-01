@@ -43,4 +43,7 @@ extern int server_port;
 // Server bind IP - can be set via command line argument (default: 0.0.0.0 - all interfaces)
 extern char server_bind_ip[16];
 
+// Skip authentication flag - can be set via --skip-auth command line argument
+extern int skip_auth;
+
 #endif

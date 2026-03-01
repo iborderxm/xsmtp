@@ -78,7 +78,17 @@ void respond(int client_sockfd, char* request) {
 				send_data(client_sockfd, reply_code[15]);
 			}
 		} else if (mail_stat == 12) {
-			send_data(client_sockfd, reply_code[23]);
+			if (skip_auth) {
+				// Skip authentication, allow MAIL FROM directly
+				char *pa, *pb;
+				pa = strchr(request, '<');
+				pb = strchr(request, '>');
+				strncpy(from_user, pa + 1, pb - pa - 1);
+				send_data(client_sockfd, reply_code[6]);
+				mail_stat = 3;
+			} else {
+				send_data(client_sockfd, reply_code[23]);
+			}
 		} else {
 			send_data(client_sockfd, "503 Error: send HELO/EHLO first\r\n");
 		}

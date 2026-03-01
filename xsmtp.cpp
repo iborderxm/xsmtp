@@ -26,6 +26,7 @@ char from_user[64] = "";
 char rcpt_user[MAX_RCPT_USR][30] = {""};
 int server_port = DEFAULT_PORT;
 char server_bind_ip[16] = "0.0.0.0";
+int skip_auth = 0;
 
 int quit(int arg);
 
@@ -48,11 +49,14 @@ int main(int argc,char* argv[]) {
 			strncpy(server_bind_ip, argv[i + 1], 15);
 			server_bind_ip[15] = '\0';
 			i++;
+		} else if (strcmp(argv[i], "--skip-auth") == 0) {
+			skip_auth = 1;
 		} else if (strcmp(argv[i], "--help") == 0) {
 			cout << "Usage: " << argv[0] << " [options]\n"
 				 << "Options:\n"
 				 << "  -p <port>    Set server port (default: " << DEFAULT_PORT << ")\n"
 				 << "  -h <ip>      Set bind IP address (default: 0.0.0.0)\n"
+				 << "  --skip-auth  Skip authentication (for testing only)\n"
 				 << "  --help       Show this help message\n";
 			return 0;
 		}
